@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vstgui-ui-description version="1">
+	<template name="view" origin="0, 0" size="1000, 180" background-color="#333333">
+		<view class="CKnob" control-tag="SINE" origin="100, 40" size="90, 90" />
+		<view class="CTextLabel" title="Sine" origin="100, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="SAW" origin="200, 40" size="90, 90" />
+		<view class="CTextLabel" title="Saw" origin="200, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="SQUARE" origin="300, 40" size="90, 90" />
+		<view class="CTextLabel" title="Square" origin="300, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="TRIANGLE" origin="400, 40" size="90, 90" />
+		<view class="CTextLabel" title="Triangle" origin="400, 70" size="90, 20" transparent="true"/>
+
+		<view class="CKnob" control-tag="ATTACK" origin="600, 40" size="90, 90" />
+		<view class="CTextLabel" title="Attack" origin="600, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="DECAY" origin="700, 40" size="90, 90" />
+		<view class="CTextLabel" title="Decay" origin="700, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="SUSTAIN" origin="800, 40" size="90, 90" />
+		<view class="CTextLabel" title="Sustain" origin="800, 70" size="90, 20" transparent="true"/>
+		<view class="CKnob" control-tag="RELEASE" origin="900, 40" size="90, 90" />
+		<view class="CTextLabel" title="Release" origin="900, 70" size="90, 20" transparent="true"/>
+	</template>
+
+	<control-tags>
+		<control-tag name="SINE" tag="100"/>
+		<control-tag name="SAW" tag="101"/>
+		<control-tag name="SQUARE" tag="102"/>
+		<control-tag name="TRIANGLE" tag="103"/>
+
+		<control-tag name="ATTACK" tag="200"/>
+		<control-tag name="DECAY" tag="201"/>
+		<control-tag name="SUSTAIN" tag="202"/>
+		<control-tag name="RELEASE" tag="203"/>
+	</control-tags>
+
+	<fonts>
+	</fonts>
+	<colors>
+	</colors>
+	<bitmaps/>
+</vstgui-ui-description>
