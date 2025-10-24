@@ -1,0 +1,12 @@
+VERS_1.0 {
+  global:
+    VstCreate;
+    VstDestroy;
+    VstSetParam;
+    VstNoteOn;
+    VstNoteOff;
+    VstSetLatency;
+    VstProcess;
+  local:
+    *;
+};

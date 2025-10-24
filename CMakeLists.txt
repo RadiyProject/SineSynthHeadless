@@ -77,6 +77,12 @@ set(SMTG_VSTGUI_ROOT "${vst3sdk_SOURCE_DIR}")
 set(SMTG_PLUGIN_TARGET_PATH "${CMAKE_CURRENT_BINARY_DIR}/VST3/${CMAKE_BUILD_TYPE}" CACHE PATH "" FORCE)
 set(SMTG_ENABLE_VSTGUI_SUPPORT OFF CACHE BOOL "" FORCE)
 
+# Линкуем Steinberg SDK статически
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# Единый ABI (современный)
+add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)
+
 add_subdirectory(${vst3sdk_SOURCE_DIR} ${PROJECT_BINARY_DIR}/vst3sdk)
 smtg_enable_vst3_sdk()
 
@@ -117,6 +123,43 @@ if(HEADLESS)
 endif()
 
 target_link_libraries(SineSynth PRIVATE sdk)
+
+add_library(VstHostCapi SHARED host/VstHostCapi.cpp)
+target_include_directories(VstHostCapi PRIVATE
+    ${vst3sdk_SOURCE_DIR}
+    ${vst3sdk_SOURCE_DIR}/public.sdk/source
+    ${CMAKE_CURRENT_SOURCE_DIR}/host
+)
+
+set(SDK_HOSTING_DIR "${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting")
+if(EXISTS "${SDK_HOSTING_DIR}/module_linux.cpp")
+  set(MODULE_CPP "${SDK_HOSTING_DIR}/module_linux.cpp")
+else()
+  set(MODULE_CPP "${SDK_HOSTING_DIR}/module.cpp")
+endif()
+
+target_sources(VstHostCapi PRIVATE
+  ${MODULE_CPP}
+  ${SDK_HOSTING_DIR}/parameterchanges.cpp
+  ${SDK_HOSTING_DIR}/eventlist.cpp
+)
+
+target_link_libraries(VstHostCapi PRIVATE sdk_hosting sdk base pluginterfaces)
+
+# видимость по умолчанию + не прятать инлайны
+set_target_properties(VstHostCapi PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+  OUTPUT_NAME "VstHostCapi"
+)
+
+if(UNIX AND NOT APPLE)
+  target_link_options(VstHostCapi PRIVATE
+    "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/host/exports.map"
+    "-Wl,--no-undefined"
+  )
+endif()
 
 # ===== VSTGUI resources (only if enabled) =====
 if(SMTG_ENABLE_VSTGUI_SUPPORT)
