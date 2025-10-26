@@ -129,6 +129,7 @@ target_include_directories(VstHostCapi PRIVATE
     ${vst3sdk_SOURCE_DIR}
     ${vst3sdk_SOURCE_DIR}/public.sdk/source
     ${CMAKE_CURRENT_SOURCE_DIR}/host
+    ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
 
 set(SDK_HOSTING_DIR "${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting")
@@ -159,6 +160,19 @@ if(UNIX AND NOT APPLE)
     "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/host/exports.map"
     "-Wl,--no-undefined"
   )
+endif()
+
+set(PLUGIN_ENV_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.env")
+
+# Если .env есть — копируем рядом с libVstHostCapi.so
+if(EXISTS "${PLUGIN_ENV_FILE}")
+  add_custom_command(TARGET VstHostCapi POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${PLUGIN_ENV_FILE}"
+      "$<TARGET_FILE_DIR:VstHostCapi>/.env"
+    COMMENT "Copy .env -> $<TARGET_FILE_DIR:VstHostCapi>/.env")
+else()
+  message(WARNING ".env not found at ${PLUGIN_ENV_FILE} — skipping copy")
 endif()
 
 # ===== VSTGUI resources (only if enabled) =====

@@ -5,6 +5,8 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
+#include "Env.h"
+#include "Log.h"
 
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/base/ipluginbase.h"               // IPluginFactory(2/3), PClassInfo(2)
@@ -95,6 +97,7 @@ static bool findFirstAudioEffect(IPluginFactory* f, TUID outCid)
 
 // create / destroy
 API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSize, int channels) {
+    radiyx::Log::Instance().Push("Create started");
     if (!pluginPath) return nullptr;
 
     auto* h = new VstHandle();
@@ -164,6 +167,7 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
 
     h->chL.assign(h->block, 0.f);
     h->chR.assign(h->block, 0.f);
+    radiyx::Log::Instance().Push("Create finished");
 
     return h;
 }

@@ -59,14 +59,13 @@ class Log
         std::string GetLogPath()
         {
             static bool dotenvLoaded = false;
-            if (!dotenvLoaded)
-            {
-                Env::LoadDotEnv();
-                dotenvLoaded = true;
-            }
+            if (!dotenvLoaded) { Env::LoadDotEnv(); dotenvLoaded = true; }
 
-            const char* envPath = std::getenv("LOG_PATH");
-            return envPath ? std::string(envPath) : "";
+            const char* p = std::getenv("LOG_PATH");
+            if (p && *p) return std::string(p);
+
+            // Фолбэк — временный лог, чтобы хоть что-то увидеть
+            return "/tmp/vsthost.log";
         }
 };
 
