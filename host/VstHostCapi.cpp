@@ -265,3 +265,43 @@ API int VstProcess(VstHandle* h, float* outInterleaved, int frames) {
     }
     return todo;
 }
+
+API bool VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int channels, int processMode) {
+    if (!h) return false;
+    std::lock_guard<std::mutex> lk(h->m);
+
+    // 0) остановить процессинг
+    if (h->processor) h->processor->setProcessing(false);
+    if (h->component) h->component->setActive(false);
+
+    // 1) апдейт параметров хоста
+    h->sr       = (int)sampleRate;
+    h->block    = blockSize  > 0 ? blockSize  : h->block;
+    h->channels = channels   > 0 ? channels   : h->channels;
+
+    // 2) режим обработки (0=realtime, 1=offline)
+    h->setup.processMode = (processMode == 1) ? kOffline : kRealtime;
+    h->setup.sampleRate = sampleRate;
+    h->setup.maxSamplesPerBlock = h->block;
+    h->setup.symbolicSampleSize = kSample32;
+
+    // 3) раскладка выходов под 1 или 2 канала
+    SpeakerArrangement outArr = (h->channels == 1) ? SpeakerArr::kMono : SpeakerArr::kStereo;
+    h->processor->setBusArrangements(nullptr, 0, &outArr, 1);
+
+    // 4) применить новый setup
+    if (h->processor->setupProcessing(h->setup) != kResultOk)
+        return false;
+
+    // 5) обновить контекст и буферы
+    h->ctx.sampleRate = sampleRate;
+    h->chL.assign(h->block, 0.f);
+    h->chR.assign(h->block, 0.f);
+
+    // 6) снова активировать и запустить
+    h->component->activateBus(kAudio, kOutput, 0, true);
+    h->component->setActive(true);
+    h->processor->setProcessing(true);
+
+    return true;
+}
