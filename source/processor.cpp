@@ -4,6 +4,7 @@
 
 #include "processor.h"
 #include "cids.h"
+#include <algorithm>
 
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
@@ -64,10 +65,17 @@ namespace radiyx {
 	}
 
 	//------------------------------------------------------------------------
-	tresult PLUGIN_API SineSynthProcessor::setActive (TBool state)
+	tresult PLUGIN_API SineSynthProcessor::setActive(TBool state)
 	{
 		//--- called when the Plug-in is enable/disable (On/Off) -----
-		return AudioEffect::setActive (state);
+		tresult result = AudioEffect::setActive(state);
+		if (state)
+		{
+			synth.SetSampleRate(processSetup.sampleRate);
+			synth.adsr.SetSampleRate(processSetup.sampleRate);
+		}
+
+		return result;
 	}
 
 	//------------------------------------------------------------------------
@@ -162,6 +170,10 @@ namespace radiyx {
 		{
 			Vst::Sample32* outLeft = data.outputs[0].channelBuffers32[0];
 			Vst::Sample32* outRight = data.outputs[0].channelBuffers32[1];
+
+			std::fill(outLeft, outLeft + data.numSamples, 0.f);
+			std::fill(outRight, outRight + data.numSamples, 0.f);
+
 			synth.GetOutputSignal(outLeft, outRight, data.numSamples);
 		}
 
@@ -169,9 +181,26 @@ namespace radiyx {
 	}
 
 	//------------------------------------------------------------------------
-	tresult PLUGIN_API SineSynthProcessor::setupProcessing (Vst::ProcessSetup& newSetup)
+	tresult PLUGIN_API SineSynthProcessor::setupProcessing(Vst::ProcessSetup& newSetup)
 	{
-		return AudioEffect::setupProcessing (newSetup);
+		tresult result = AudioEffect::setupProcessing(newSetup);
+
+		if (result == kResultOk)
+		{
+			double oldSampleRate = synth.GetSampleRate();
+
+			synth.SetSampleRate(newSetup.sampleRate);
+			synth.adsr.SetSampleRate(newSetup.sampleRate);
+
+			if (oldSampleRate != newSetup.sampleRate)
+			{
+				synth.RebindRuntimeToSampleRate();
+			}
+
+			// НЕ делать synth.ResetRuntime() здесь
+		}
+
+		return result;
 	}
 
 	//------------------------------------------------------------------------
@@ -189,60 +218,48 @@ namespace radiyx {
 	}
 
 	//------------------------------------------------------------------------
-	tresult PLUGIN_API SineSynthProcessor::setState (IBStream* state)
+	tresult PLUGIN_API SineSynthProcessor::setState(IBStream* state)
 	{
-		// called when we load a preset, the model has to be reloaded
-		IBStreamer streamer (state, kLittleEndian);
+		if (!state)
+		{
+			synth.ResetToDefaults();
+			synth.SetSampleRate(processSetup.sampleRate);
+			synth.adsr.SetSampleRate(processSetup.sampleRate);
+			return kResultOk;
+		}
+
+		IBStreamer streamer(state, kLittleEndian);
 
 		int32 version = 0;
-		if (!streamer.readInt32(version)) return kResultFalse;
+		if (!streamer.readInt32(version)) {
+			synth.ResetToDefaults();
+			synth.SetSampleRate(processSetup.sampleRate);
+			synth.adsr.SetSampleRate(processSetup.sampleRate);
+			return kResultOk;
+		}
 
-		float value;
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.SetSine(value);
+		if (!synth.ReadState(streamer)) {
+			synth.ResetToDefaults();
+			synth.SetSampleRate(processSetup.sampleRate);
+			synth.adsr.SetSampleRate(processSetup.sampleRate);
+			return kResultFalse;
+		}
 
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.SetSaw(value);
+		synth.SetSampleRate(processSetup.sampleRate);
+		synth.adsr.SetSampleRate(processSetup.sampleRate);
+		synth.RebindRuntimeToSampleRate();
 
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.SetSquare(value);
-
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.SetTriangle(value);
-
-
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.adsr.SetAttack(value);
-
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.adsr.SetDecay(value);
-
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.adsr.SetSustain(value);
-
-		if (!streamer.readFloat(value)) return kResultFalse;
-		synth.adsr.SetRelease(value);
-		
 		return kResultOk;
 	}
 
-	//------------------------------------------------------------------------
-	tresult PLUGIN_API SineSynthProcessor::getState (IBStream* state)
+	tresult PLUGIN_API SineSynthProcessor::getState(IBStream* state)
 	{
-		// here we need to save the model
-		IBStreamer streamer (state, kLittleEndian);
+		IBStreamer streamer(state, kLittleEndian);
 
 		streamer.writeInt32(1);
-
-		streamer.writeFloat(synth.GetSine());
-		streamer.writeFloat(synth.GetSaw());
-		streamer.writeFloat(synth.GetSquare());
-		streamer.writeFloat(synth.GetTriangle());
-
-		streamer.writeFloat(synth.adsr.GetAttack());
-		streamer.writeFloat(synth.adsr.GetDecay());
-		streamer.writeFloat(synth.adsr.GetSustain());
-		streamer.writeFloat(synth.adsr.GetRelease());
+		if (!synth.WriteState(streamer)) {
+			return kResultFalse;
+		}
 
 		return kResultOk;
 	}

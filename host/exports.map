@@ -8,6 +8,9 @@ VERS_1.0 {
     VstSetLatency;
     VstProcess;
     VstReconfigure;
+    VstGetState;
+    VstSetState;
+    VstGetProcessMode;
   local:
     *;
 };

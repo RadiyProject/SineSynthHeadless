@@ -8,6 +8,7 @@
 #include "ADSR.h"
 #include <vector>
 #include "SynthVoice.h"
+#include "base/source/fstreamer.h"
 
 namespace radiyx {
 
@@ -26,6 +27,14 @@ class Synth
         Synth& SetVolume(float volume);
         Synth& SetSampleRate(double rate);
         Synth& SetTune(float tune);
+
+        Synth& ResetRuntime();
+        Synth& ResetToDefaults();
+
+        bool WriteState(Steinberg::IBStreamer& streamer) const;
+        bool ReadState(Steinberg::IBStreamer& streamer);
+
+        Synth& RebindRuntimeToSampleRate();
 
         ADSR adsr;
 
@@ -53,7 +62,7 @@ class Synth
         float frequency = 0.f;
         float volume = 0.6f;
         float tune = 440.f;
-        double sampleRate;
+        double sampleRate = 44100.0;
         std::vector<SynthVoice> voices;
 
         SynthVoice* FindFreeVoice();

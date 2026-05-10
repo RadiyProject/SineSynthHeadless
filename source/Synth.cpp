@@ -208,5 +208,130 @@ namespace radiyx {
         return nullptr;
     }
 
-    //------------------------------------------------------------------------
+    Synth& Synth::ResetRuntime()
+    {
+        frequency = 0.f;
+
+        for (auto& voice : voices)
+        {
+            voice.active = false;
+            voice.note = -1;
+            voice.frequency = 0.f;
+            voice.phase = 0.f;
+            voice.deltaAngle = 0.f;
+            voice.lastUsedAt = 0;
+
+            voice.adsr.ResetRuntime();
+            voice.adsr.SetSampleRate(this->GetSampleRate());
+            voice.adsr.SetAttack(this->adsr.GetAttack());
+            voice.adsr.SetDecay(this->adsr.GetDecay());
+            voice.adsr.SetSustain(this->adsr.GetSustain());
+            voice.adsr.SetRelease(this->adsr.GetRelease());
+        }
+
+        return *this;
+    }
+
+    Synth& Synth::ResetToDefaults()
+    {
+        sine = SynthParameter::DEFAULT_SINE;
+        saw = SynthParameter::DEFAULT_SAW;
+        square = SynthParameter::DEFAULT_SQUARE;
+        triangle = SynthParameter::DEFAULT_TRIANGLE;
+
+        volume = 0.6f;
+        tune = 440.f;
+        frequency = 0.f;
+
+        adsr.SetSampleRate(this->GetSampleRate());
+        adsr.SetAttack(SynthParameter::DEFAULT_ATTACK);
+        adsr.SetDecay(SynthParameter::DEFAULT_DECAY);
+        adsr.SetSustain(SynthParameter::DEFAULT_SUSTAIN);
+        adsr.SetRelease(SynthParameter::DEFAULT_RELEASE);
+        adsr.ResetRuntime();
+
+        ResetRuntime();
+
+        return *this;
+    }
+
+    bool Synth::WriteState(Steinberg::IBStreamer& streamer) const
+    {
+        streamer.writeFloat(sine);
+        streamer.writeFloat(saw);
+        streamer.writeFloat(square);
+        streamer.writeFloat(triangle);
+
+        streamer.writeFloat(volume);
+        streamer.writeFloat(tune);
+        streamer.writeFloat(frequency);
+        streamer.writeDouble(sampleRate);
+
+        if (!adsr.WriteState(streamer)) {
+            return false;
+        }
+
+        streamer.writeInt32(static_cast<Steinberg::int32>(voices.size()));
+
+        for (const auto& voice : voices)
+        {
+            if (!voice.WriteState(streamer)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool Synth::ReadState(Steinberg::IBStreamer& streamer)
+    {
+        ResetToDefaults();
+
+        if (!streamer.readFloat(sine)) return false;
+        if (!streamer.readFloat(saw)) return false;
+        if (!streamer.readFloat(square)) return false;
+        if (!streamer.readFloat(triangle)) return false;
+
+        if (!streamer.readFloat(volume)) return false;
+        if (!streamer.readFloat(tune)) return false;
+        if (!streamer.readFloat(frequency)) return false;
+        if (!streamer.readDouble(sampleRate)) return false;
+
+        if (!adsr.ReadState(streamer)) return false;
+
+        Steinberg::int32 voiceCount = 0;
+        if (!streamer.readInt32(voiceCount)) return false;
+
+        if (voiceCount < 0 || voiceCount > 256) {
+            return false;
+        }
+
+        voices.resize(static_cast<size_t>(voiceCount));
+
+        for (auto& voice : voices)
+        {
+            if (!voice.ReadState(streamer)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    Synth& Synth::RebindRuntimeToSampleRate()
+    {
+        for (auto& voice : voices)
+        {
+            voice.adsr.SetSampleRate(this->GetSampleRate());
+
+            if (voice.active && voice.frequency > 0.0f)
+            {
+                voice.deltaAngle = Synth::PI_DOUBLED * voice.frequency / this->GetSampleRate();
+            }
+        }
+
+        return *this;
+    }
+
+//------------------------------------------------------------------------
 } // namespace radiyx

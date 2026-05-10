@@ -19,6 +19,8 @@
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 
+#include "public.sdk/source/common/memorystream.h"
+
 #include "api.h"
 
 using namespace Steinberg;
@@ -38,6 +40,8 @@ struct VstHandle {
     int sr = 48000;
     int block = 512;
     int channels = 2;
+
+    int processMode = 0; // 0 = realtime, 1 = offline
 
     ProcessSetup setup{};
 
@@ -148,6 +152,7 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
     // initialize + setup
     if (h->component->initialize(nullptr) != kResultOk) { delete h; return nullptr; }
 
+    h->processMode = 0;
     h->setup.processMode = kRealtime;
     h->setup.symbolicSampleSize = kSample32;
     h->setup.maxSamplesPerBlock = h->block;
@@ -228,6 +233,11 @@ API int VstProcess(VstHandle* h, float* outInterleaved, int frames) {
 
     const int todo = std::min(frames, h->block);
 
+    if ((int)h->chL.size() < todo) h->chL.resize(todo, 0.f);
+    std::fill(h->chL.begin(), h->chL.begin() + todo, 0.f);
+    if ((int)h->chR.size() < todo) h->chR.resize(todo, 0.f);
+    std::fill(h->chR.begin(), h->chR.begin() + todo, 0.f);
+
     // Подготовим выходные буферы (non-interleaved)
     Sample32* outs[2] = { h->chL.data(), h->chR.data() };
     AudioBusBuffers outBuf{};
@@ -280,7 +290,8 @@ API bool VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int chan
     h->channels = channels   > 0 ? channels   : h->channels;
 
     // 2) режим обработки (0=realtime, 1=offline)
-    h->setup.processMode = (processMode == 1) ? kOffline : kRealtime;
+    h->processMode = processMode == 1 ? 1 : 0;
+    h->setup.processMode = h->processMode == 1 ? kOffline : kRealtime;
     h->setup.sampleRate = sampleRate;
     h->setup.maxSamplesPerBlock = h->block;
     h->setup.symbolicSampleSize = kSample32;
@@ -304,4 +315,180 @@ API bool VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int chan
     h->processor->setProcessing(true);
 
     return true;
+}
+
+API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
+    if (!h || !size) return false;
+    std::lock_guard<std::mutex> lk(h->m);
+
+    // 1) получить state компонента
+    Steinberg::MemoryStream compMs;
+    uint32_t compSize = 0;
+    if (h->component) {
+        if (h->component->getState(&compMs) != kResultOk)
+            return false;
+        compSize = static_cast<uint32_t>(compMs.getSize());
+    }
+
+    // 2) получить state контроллера (если есть)
+    Steinberg::MemoryStream ctlMs;
+    uint32_t ctlSize = 0;
+    if (h->controller) {
+        if (h->controller->getState(&ctlMs) != kResultOk)
+            return false;
+        ctlSize = static_cast<uint32_t>(ctlMs.getSize());
+    }
+
+    // 3) общий размер: 4 + comp + 4 + ctl
+    const uint32_t total = 4u + compSize + 4u + ctlSize;
+
+    if (!buffer) {
+        // только сообщаем нужный размер
+        *size = total;
+        return true;
+    }
+
+    if (*size < total) {
+        // буфера не хватило — сообщаем, сколько нужно
+        *size = total;
+        return false;
+    }
+
+    uint8_t* out = static_cast<uint8_t*>(buffer);
+
+    auto writeU32 = [&](uint32_t v) {
+        out[0] = (uint8_t)(v & 0xFF);
+        out[1] = (uint8_t)((v >> 8) & 0xFF);
+        out[2] = (uint8_t)((v >> 16) & 0xFF);
+        out[3] = (uint8_t)((v >> 24) & 0xFF);
+        out += 4;
+    };
+
+    // 4) пишем component
+    writeU32(compSize);
+    if (compSize > 0) {
+        auto* data = reinterpret_cast<const uint8_t*>(compMs.getData());
+        std::memcpy(out, data, compSize);
+        out += compSize;
+    }
+
+    // 5) пишем controller
+    writeU32(ctlSize);
+    if (ctlSize > 0) {
+        auto* data = reinterpret_cast<const uint8_t*>(ctlMs.getData());
+        std::memcpy(out, data, ctlSize);
+        out += ctlSize;
+    }
+
+    *size = total;
+    return true;
+}
+
+API bool VstSetState(VstHandle* h, const void* buffer, uint32_t size) {
+    if (!h)
+        return false;
+
+    std::lock_guard<std::mutex> lk(h->m);
+
+    // 1. Всегда очищаем host-side runtime перед восстановлением состояния.
+    if (h->inParams) {
+#if 1
+        h->inParams->clearQueue();
+#else
+        h->inParams->clear();
+#endif
+    } else {
+        h->inParams.reset(new ParameterChanges());
+    }
+
+    if (h->inEvents) {
+        h->inEvents->clear();
+    } else {
+        h->inEvents.reset(new EventList());
+    }
+
+    std::fill(h->chL.begin(), h->chL.end(), 0.f);
+    std::fill(h->chR.begin(), h->chR.end(), 0.f);
+
+    h->ctx = {};
+    h->ctx.sampleRate = h->setup.sampleRate;
+
+    // 2. Пустое состояние = только очистка runtime.
+    // Это важно для нового pluginId, у которого ещё нет сохранённого state.
+    if (!buffer || size == 0) {
+        Steinberg::MemoryStream emptyState;
+
+        if (h->component) {
+            return h->component->setState(&emptyState) == kResultOk;
+        }
+
+        return true;
+    }
+
+    // 3. Если state есть, он должен содержать хотя бы:
+    // uint32 componentSize + uint32 controllerSize.
+    if (size < 8) {
+        return false;
+    }
+
+    const uint8_t* in = static_cast<const uint8_t*>(buffer);
+
+    auto readU32 = [&]() -> uint32_t {
+        uint32_t v = (uint32_t)in[0] |
+                     ((uint32_t)in[1] << 8) |
+                     ((uint32_t)in[2] << 16) |
+                     ((uint32_t)in[3] << 24);
+        in += 4;
+        return v;
+    };
+
+    // 4. Component state.
+    uint32_t compSize = readU32();
+
+    if (4u + compSize + 4u > size) {
+        return false;
+    }
+
+    if (compSize > 0 && h->component) {
+        Steinberg::MemoryStream compMs(
+            const_cast<uint8_t*>(in),
+            static_cast<int32>(compSize)
+        );
+
+        if (h->component->setState(&compMs) != kResultOk) {
+            return false;
+        }
+    }
+
+    in += compSize;
+
+    // 5. Controller state.
+    uint32_t ctlSize = readU32();
+
+    const uint32_t used = 4u + compSize + 4u + ctlSize;
+    if (used > size) {
+        return false;
+    }
+
+    if (ctlSize > 0 && h->controller) {
+        Steinberg::MemoryStream ctlMs(
+            const_cast<uint8_t*>(in),
+            static_cast<int32>(ctlSize)
+        );
+
+        if (h->controller->setState(&ctlMs) != kResultOk) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+API int VstGetProcessMode(VstHandle* h) {
+    if (!h)
+        return -1;
+
+    std::lock_guard<std::mutex> lk(h->m);
+
+    return h->processMode;
 }

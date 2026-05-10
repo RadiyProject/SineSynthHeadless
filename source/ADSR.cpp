@@ -141,5 +141,69 @@ namespace radiyx {
         releaseStep = (releaseTime > 0.f) ? 1.0f - expf(-1.0f / (releaseTime * sampleRate)) : 1.0f;
     }
 
-    //------------------------------------------------------------------------
+    ADSR& ADSR::ResetRuntime()
+    {
+        currentLevel = 0.0f;
+        currentState = State::Idle;
+
+        return *this;
+    }
+
+    bool ADSR::WriteState(Steinberg::IBStreamer& streamer) const
+    {
+        streamer.writeDouble(sampleRate);
+
+        streamer.writeFloat(attackTime);
+        streamer.writeFloat(decayTime);
+        streamer.writeFloat(sustainLevel);
+        streamer.writeFloat(releaseTime);
+
+        streamer.writeFloat(currentLevel);
+        streamer.writeInt32(static_cast<Steinberg::int32>(currentState));
+
+        return true;
+    }
+
+    bool ADSR::ReadState(Steinberg::IBStreamer& streamer)
+    {
+        double sr = 44100.0;
+        float attack = 0.01f;
+        float decay = 0.1f;
+        float sustain = 0.8f;
+        float release = 0.3f;
+        float level = 0.0f;
+        Steinberg::int32 stateValue = 0;
+
+        if (!streamer.readDouble(sr)) return false;
+        if (!streamer.readFloat(attack)) return false;
+        if (!streamer.readFloat(decay)) return false;
+        if (!streamer.readFloat(sustain)) return false;
+        if (!streamer.readFloat(release)) return false;
+        if (!streamer.readFloat(level)) return false;
+        if (!streamer.readInt32(stateValue)) return false;
+
+        sampleRate = sr;
+        attackTime = attack;
+        decayTime = decay;
+        sustainLevel = sustain;
+        releaseTime = release;
+        currentLevel = level;
+
+        if (stateValue < static_cast<Steinberg::int32>(State::Idle) ||
+            stateValue > static_cast<Steinberg::int32>(State::Release))
+        {
+            currentState = State::Idle;
+            currentLevel = 0.0f;
+        }
+        else
+        {
+            currentState = static_cast<State>(stateValue);
+        }
+
+        RecalculateSteps();
+
+        return true;
+    }
+
+//------------------------------------------------------------------------
 } // namespace radiyx

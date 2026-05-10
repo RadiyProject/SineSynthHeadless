@@ -14,13 +14,16 @@ extern "C" {
 typedef struct VstHandle VstHandle;
 
 API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSize, int channels);
-API void       VstDestroy(VstHandle* h);
-API void       VstSetParam(VstHandle* h, uint32_t id, float norm);
-API void       VstNoteOn (VstHandle* h, int note, float vel);
-API void       VstNoteOff(VstHandle* h, int note);
-API void       VstSetLatency(VstHandle* h, uint32_t samples);
-API int        VstProcess(VstHandle* h, float* outInterleaved, int frames);
-API bool       VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int channels, int processMode);
+API void VstDestroy(VstHandle* h);
+API void VstSetParam(VstHandle* h, uint32_t id, float norm);
+API void VstNoteOn (VstHandle* h, int note, float vel);
+API void VstNoteOff(VstHandle* h, int note);
+API void VstSetLatency(VstHandle* h, uint32_t samples);
+API int  VstProcess(VstHandle* h, float* outInterleaved, int frames);
+API bool VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int channels, int processMode);
+API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size);
+API bool VstSetState(VstHandle* h, const void* buffer, uint32_t size);
+API int VstGetProcessMode(VstHandle* h);
 
 #ifdef __cplusplus
 }

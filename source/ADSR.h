@@ -1,5 +1,7 @@
 #pragma once
 
+#include "base/source/fstreamer.h"
+
 namespace radiyx {
 
 class ADSR
@@ -12,7 +14,9 @@ class ADSR
             attackTime(0.01f), decayTime(0.1f),
             sustainLevel(0.8f), releaseTime(0.3f),
             currentState(State::Idle), currentLevel(0.0f)
-        {}
+        {
+            RecalculateSteps();
+        }
 
         ADSR& SetSampleRate(double sampleRate);
         
@@ -33,6 +37,11 @@ class ADSR
 
         bool IsActive() const;
         bool IsInRelease() const;
+
+        ADSR& ResetRuntime();
+
+        bool WriteState(Steinberg::IBStreamer& streamer) const;
+        bool ReadState(Steinberg::IBStreamer& streamer);
 
     private:
         void RecalculateSteps();

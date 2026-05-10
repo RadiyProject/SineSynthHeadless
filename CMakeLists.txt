@@ -124,7 +124,9 @@ endif()
 
 target_link_libraries(SineSynth PRIVATE sdk)
 
-add_library(VstHostCapi SHARED host/VstHostCapi.cpp)
+add_library(VstHostCapi SHARED host/VstHostCapi.cpp
+    ${vst3sdk_SOURCE_DIR}/public.sdk/source/common/memorystream.cpp
+)
 target_include_directories(VstHostCapi PRIVATE
     ${vst3sdk_SOURCE_DIR}
     ${vst3sdk_SOURCE_DIR}/public.sdk/source
