@@ -15,7 +15,7 @@ namespace radiyx {
 class Synth
 {
     public:
-        Synth(size_t polyphony = 4) : voices(polyphony) {}
+        Synth(size_t polyphony = 128) : voices(polyphony) {}
 
         Synth& SetSine(float value);
         Synth& SetSaw(float value);
