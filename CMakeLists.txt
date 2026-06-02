@@ -124,14 +124,15 @@ endif()
 
 target_link_libraries(SineSynth PRIVATE sdk)
 
-add_library(VstHostCapi SHARED host/VstHostCapi.cpp
+set(HEADLESS_HOST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VstHostCapi")
+
+add_library(VstHostCapi SHARED ${HEADLESS_HOST_DIR}/host/VstHostCapi.cpp
     ${vst3sdk_SOURCE_DIR}/public.sdk/source/common/memorystream.cpp
 )
 target_include_directories(VstHostCapi PRIVATE
     ${vst3sdk_SOURCE_DIR}
     ${vst3sdk_SOURCE_DIR}/public.sdk/source
-    ${CMAKE_CURRENT_SOURCE_DIR}/host
-    ${CMAKE_CURRENT_SOURCE_DIR}/source
+    ${HEADLESS_HOST_DIR}/host
 )
 
 set(SDK_HOSTING_DIR "${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting")
@@ -159,7 +160,7 @@ set_target_properties(VstHostCapi PROPERTIES
 
 if(UNIX AND NOT APPLE)
   target_link_options(VstHostCapi PRIVATE
-    "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/host/exports.map"
+    "-Wl,--version-script=${HEADLESS_HOST_DIR}/host/exports.map"
     "-Wl,--no-undefined"
   )
 endif()
