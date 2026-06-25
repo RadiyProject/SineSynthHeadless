@@ -152,7 +152,7 @@ namespace radiyx {
 					switch (event.type)
 					{
 						case Vst::Event::kNoteOnEvent:
-							synth.NoteOn(event.noteOn.pitch);
+							synth.NoteOn(event.noteOn.pitch, event.noteOn.velocity);
 							break;
 
 						case Vst::Event::kNoteOffEvent:

@@ -17,6 +17,7 @@ struct SynthVoice
     float frequency = 0.f;
     float phase = 0.f;
     float deltaAngle = 0.f;
+    float velocity = 1.f;
     uint64_t lastUsedAt = 0;
     ADSR adsr;
 
@@ -49,6 +50,7 @@ struct SynthVoice
 
         active = activeValue != 0;
         note = static_cast<int>(noteValue);
+        velocity = 1.f;
         lastUsedAt = static_cast<uint64_t>(lastUsedValue);
 
         return true;

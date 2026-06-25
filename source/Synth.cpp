@@ -7,6 +7,7 @@
 #include <ctime>
 #include "Log.h"
 #include <cmath>
+#include <algorithm>
 
 namespace radiyx {
     Synth& Synth::SetSine(float value)
@@ -34,8 +35,10 @@ namespace radiyx {
         return *this;
     }
 
-    Synth& Synth::NoteOn(int note)
+    Synth& Synth::NoteOn(int note, float velocity)
     {
+        velocity = std::clamp(velocity, 0.0f, 1.0f);
+
         if (auto* voice = this->FindVoice(note))
         {
             voice->lastUsedAt = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -48,6 +51,7 @@ namespace radiyx {
             voice->adsr.SetRelease(this->adsr.GetRelease());
 
             voice->adsr.NoteOn();
+            voice->velocity = velocity;
             voice->active = true;
 
             return *this;
@@ -57,6 +61,7 @@ namespace radiyx {
         {
             Log::Instance().Push("Free voice activation");
             voice->note = note;
+            voice->velocity = velocity;
             voice->frequency = this->tune * pow(2.f, float(note - 69) / float(SEMITONES_COUNT));
             voice->deltaAngle = Synth::PI_DOUBLED * voice->frequency / this->GetSampleRate();
             voice->adsr.SetSampleRate(this->GetSampleRate());
@@ -156,7 +161,7 @@ namespace radiyx {
                 voiceSample += normalizationFactor * this->GetSquare() * ((voice.phase < Synth::PI) ? 1.0f : -1.0f);
                 voiceSample += normalizationFactor * this->GetTriangle() * (2.0f * fabs(2.0f * (voice.phase / Synth::PI_DOUBLED) - 1.0f) - 1.0f);
 
-                voiceSample *= this->GetVolume() * envelope;
+                voiceSample *= this->GetVolume() * envelope * voice.velocity;
                 sampleValue += voiceSample;
                 gainSum += envelope;
 
@@ -219,6 +224,7 @@ namespace radiyx {
             voice.frequency = 0.f;
             voice.phase = 0.f;
             voice.deltaAngle = 0.f;
+            voice.velocity = 1.f;
             voice.lastUsedAt = 0;
 
             voice.adsr.ResetRuntime();

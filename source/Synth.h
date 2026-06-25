@@ -22,7 +22,7 @@ class Synth
         Synth& SetSquare(float value);
         Synth& SetTriangle(float value);
 
-        Synth& NoteOn(int note);
+        Synth& NoteOn(int note, float velocity = 1.f);
         Synth& NoteOff(int note);
         Synth& SetVolume(float volume);
         Synth& SetSampleRate(double rate);
