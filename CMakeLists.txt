@@ -77,10 +77,10 @@ set(SMTG_VSTGUI_ROOT "${vst3sdk_SOURCE_DIR}")
 set(SMTG_PLUGIN_TARGET_PATH "${CMAKE_CURRENT_BINARY_DIR}/VST3/${CMAKE_BUILD_TYPE}" CACHE PATH "" FORCE)
 set(SMTG_ENABLE_VSTGUI_SUPPORT OFF CACHE BOOL "" FORCE)
 
-# Линкуем Steinberg SDK статически
+# Link the Steinberg SDK statically.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
-# Единый ABI (современный)
+# Use a consistent modern ABI.
 add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1)
 
 add_subdirectory(${vst3sdk_SOURCE_DIR} ${PROJECT_BINARY_DIR}/vst3sdk)
@@ -90,7 +90,7 @@ smtg_enable_vst3_sdk()
 if(UNIX AND NOT APPLE AND NOT HEADLESS)
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
-    # Optional: ALSA/JACK if вы используете аудио I/O в standalone/host
+    # Optional: ALSA/JACK if using audio I/O in a standalone application or host
     find_path(ALSA_INCLUDE_DIR NAMES alsa/asoundlib.h)
     find_library(ALSA_LIBRARY asound)
     find_library(JACK_LIBRARY jack)
@@ -150,7 +150,7 @@ target_sources(VstHostCapi PRIVATE
 
 target_link_libraries(VstHostCapi PRIVATE sdk_hosting sdk base pluginterfaces)
 
-# видимость по умолчанию + не прятать инлайны
+# Default visibility, including inline functions.
 set_target_properties(VstHostCapi PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
@@ -167,7 +167,7 @@ endif()
 
 set(PLUGIN_ENV_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.env")
 
-# Если .env есть — копируем рядом с libVstHostCapi.so
+# If .env exists, copy it next to libVstHostCapi.so.
 if(EXISTS "${PLUGIN_ENV_FILE}")
   add_custom_command(TARGET VstHostCapi POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -216,5 +216,5 @@ elseif(SMTG_WIN)
         )
     endif()
 elseif(UNIX AND NOT APPLE)
-    # ничего не делаем для Linux — выкладкой и путями управляет docker-compose
+    # No action on Linux: Docker Compose manages deployment and paths.
 endif()

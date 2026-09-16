@@ -64,7 +64,7 @@ class Log
             const char* p = std::getenv("LOG_PATH");
             if (p && *p) return std::string(p);
 
-            // Фолбэк — временный лог, чтобы хоть что-то увидеть
+            // Fallback to a temporary log to retain diagnostic output.
             return "/tmp/vsthost.log";
         }
 };

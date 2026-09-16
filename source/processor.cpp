@@ -197,7 +197,7 @@ namespace radiyx {
 				synth.RebindRuntimeToSampleRate();
 			}
 
-			// НЕ делать synth.ResetRuntime() здесь
+			// Do NOT call synth.ResetRuntime() here.
 		}
 
 		return result;

@@ -54,7 +54,7 @@ class Env
             }
             return pluginDir;
         #elif defined(__linux__) || defined(_WIN32)
-            // Ожидаем путь типа: /.../build/.../SineSynth.vst3 или \...\\build\\...\\SineSynth.vst3
+            // Expected path: /.../build/.../SineSynth.vst3 or \...\\build\\...\\SineSynth.vst3
             size_t buildPos = pluginDir.find("/build");
             if (buildPos == std::string::npos)
                 buildPos = pluginDir.find("\\build");

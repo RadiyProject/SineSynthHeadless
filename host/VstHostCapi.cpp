@@ -30,12 +30,12 @@ using VST3::Hosting::Module;
 struct VstHandle {
     std::mutex m;
 
-    Module::Ptr module;                 // shared_ptr из hosting/module.h
+    Module::Ptr module;                 // shared_ptr from hosting/module.h
     IPluginFactory* factory = nullptr;
 
     IPtr<IComponent>      component;
     IPtr<IAudioProcessor> processor;
-    IPtr<IEditController> controller;   // опционально
+    IPtr<IEditController> controller;   // optional
 
     int sr = 48000;
     int block = 512;
@@ -45,23 +45,23 @@ struct VstHandle {
 
     ProcessSetup setup{};
 
-    // Очереди входящих параметров/событий (host-side имплементации из hosting/*)
+    // Incoming parameter/event queues (host-side implementations from hosting/*).
     std::unique_ptr<ParameterChanges> inParams{ new ParameterChanges() };
     std::unique_ptr<EventList>        inEvents{ new EventList() };
 
     std::vector<float> chL, chR;
 
-    // Dev-латентность по желанию
+    // Optional development latency
     uint32_t latency = 0;
 
     Steinberg::Vst::ProcessContext ctx{};
 };
 
-// Утилита: найти первый класс категории AudioEffect
+// Utility: find the first class in the AudioEffect category.
 static bool findFirstAudioEffect(IPluginFactory* f, TUID outCid)
 {
     if (!f) return false;
-    // Пробуем IPluginFactory3 -> IPluginFactory2 -> IPluginFactory
+    // Try IPluginFactory3 -> IPluginFactory2 -> IPluginFactory.
     if (auto f3 = FUnknownPtr<IPluginFactory3>(f)) {
         int32 count = f3->countClasses();
         PClassInfo2 ci2{};
@@ -110,14 +110,14 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
     h->channels = std::max(1, channels);
     
     h->ctx = {};                     // zero-init
-    h->ctx.sampleRate = sampleRate;  // <— достаточно для твоего плагина
-    // h->ctx.state = 0;             // опционально
+    h->ctx.sampleRate = sampleRate;  // Sufficient for this plug-in.
+    // h->ctx.state = 0;             // optional
 
     std::string err;
     std::string path = pluginPath ? pluginPath : "";
     h->module = VST3::Hosting::Module::create(path, err);
     if (!h->module) {
-        // можно залогировать err при желании
+        // Optionally log err.
         delete h;
         return nullptr;
     }
@@ -126,16 +126,16 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
     h->factory = pf.get(); 
     if (!h->factory) { delete h; return nullptr; }
 
-    // находим cid аудио-эффекта
+    // Find the audio effect class ID.
     TUID cid{};
     if (!findFirstAudioEffect(h->factory, cid)) { delete h; return nullptr; }
 
-    // создаём IComponent
+    // Create IComponent.
     IComponent* rawComp = nullptr;
     if (h->factory->createInstance(cid, IComponent::iid, (void**)&rawComp) != kResultOk || !rawComp) {
         delete h; return nullptr;
     }
-    h->component = rawComp; // IPtr возьмёт владение
+    h->component = rawComp; // IPtr takes ownership.
 
     // IAudioProcessor
     IAudioProcessor* rawProc = nullptr;
@@ -144,7 +144,7 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
     }
     h->processor = rawProc;
 
-    // IEditController (опционально; может не быть)
+    // IEditController (optional; may be absent).
     IEditController* rawCtl = nullptr;
     if (h->component->queryInterface(IEditController::iid, (void**)&rawCtl) == kResultOk && rawCtl)
         h->controller = rawCtl;
@@ -160,10 +160,10 @@ API VstHandle* VstCreate(const char* pluginPath, double sampleRate, int blockSiz
 
     if (h->processor->setupProcessing(h->setup) != kResultOk) { delete h; return nullptr; }
 
-    // Активируем компонент и основной аудиобас
+    // Activate the component and main audio bus.
     h->component->setActive(true);
 
-    // Настраиваем аут-раскладку (без инпутов, стерео аут)
+    // Configure the output layout (no inputs, stereo output).
     SpeakerArrangement outArr = SpeakerArr::kStereo;
     h->processor->setBusArrangements(nullptr, 0, &outArr, 1);
 
@@ -189,21 +189,21 @@ API void VstDestroy(VstHandle* h) {
     delete h;
 }
 
-// параметры (normalized 0..1)
+// Parameters (normalized 0..1).
 API void VstSetParam(VstHandle* h, uint32_t id, float norm) {
     if (!h) return;
     std::lock_guard<std::mutex> lk(h->m);
 
-    // В твоём SDK: addParameterData(pid, index_by_ref)
+    // SDK signature: addParameterData(pid, index_by_ref).
     int32 idx = 0;
     IParamValueQueue* q = h->inParams->addParameterData((ParamID)id, idx);
     if (q) {
-        int32 pt = 0; // lvalue обязателен
+        int32 pt = 0; // An lvalue is required.
         q->addPoint(0 /*sampleOffset*/, (ParamValue)norm, pt);
     }
 }
 
-// ноты
+// Notes
 API void VstNoteOn (VstHandle* h, int note, float vel) {
     if (!h) return;
     std::lock_guard<std::mutex> lk(h->m);
@@ -219,14 +219,14 @@ API void VstNoteOff(VstHandle* h, int note) {
     h->inEvents->addEvent(e);
 }
 
-// опционально — dev-латентность на сервере
+// Optional server-side development latency.
 API void VstSetLatency(VstHandle* h, uint32_t samples) {
     if (!h) return;
     std::lock_guard<std::mutex> lk(h->m);
     h->latency = samples;
 }
 
-// процессинг: пишет interleaved float32 (LRLR...) в out, возвращает frames
+// Processing: write interleaved float32 (LRLR...) to out and return the frame count.
 API int VstProcess(VstHandle* h, float* outInterleaved, int frames) {
     if (!h || !outInterleaved) return 0;
     std::lock_guard<std::mutex> lk(h->m);
@@ -238,13 +238,13 @@ API int VstProcess(VstHandle* h, float* outInterleaved, int frames) {
     if ((int)h->chR.size() < todo) h->chR.resize(todo, 0.f);
     std::fill(h->chR.begin(), h->chR.begin() + todo, 0.f);
 
-    // Подготовим выходные буферы (non-interleaved)
+    // Prepare non-interleaved output buffers.
     Sample32* outs[2] = { h->chL.data(), h->chR.data() };
     AudioBusBuffers outBuf{};
     outBuf.numChannels = 2;
     outBuf.channelBuffers32 = outs;
 
-    // Процессинг-запрос (ОДНА декларация!)
+    // Processing request (declare only once).
     Steinberg::Vst::ProcessData pd{};
     pd.numSamples = todo;
     pd.numOutputs = 1;
@@ -252,15 +252,15 @@ API int VstProcess(VstHandle* h, float* outInterleaved, int frames) {
     pd.inputParameterChanges = h->inParams.get();
     pd.inputEvents = h->inEvents.get();
 
-    // ВАЖНО: контекст — твой плагин читает sampleRate из него
-    h->ctx.sampleRate = h->setup.sampleRate;   // на всякий случай синхронизируем
-    // h->ctx.state = 0; // флаги не нужны, если ты используешь только sampleRate
+    // Important: the plug-in reads sampleRate from the context.
+    h->ctx.sampleRate = h->setup.sampleRate;   // Keep the sample rate synchronized.
+    // h->ctx.state = 0; // Flags are unnecessary when only sampleRate is used.
     pd.processContext = &h->ctx;
 
-    // Вызов плагина
+    // Invoke the plug-in.
     h->processor->process(pd);
 
-    // Очистка одноразовых очередей
+    // Clear one-shot queues.
 #if 1
     h->inParams->clearQueue();
 #else
@@ -280,36 +280,36 @@ API bool VstReconfigure(VstHandle* h, double sampleRate, int blockSize, int chan
     if (!h) return false;
     std::lock_guard<std::mutex> lk(h->m);
 
-    // 0) остановить процессинг
+    // 0) Stop processing.
     if (h->processor) h->processor->setProcessing(false);
     if (h->component) h->component->setActive(false);
 
-    // 1) апдейт параметров хоста
+    // 1) Update host parameters.
     h->sr       = (int)sampleRate;
     h->block    = blockSize  > 0 ? blockSize  : h->block;
     h->channels = channels   > 0 ? channels   : h->channels;
 
-    // 2) режим обработки (0=realtime, 1=offline)
+    // 2) Processing mode (0=realtime, 1=offline).
     h->processMode = processMode == 1 ? 1 : 0;
     h->setup.processMode = h->processMode == 1 ? kOffline : kRealtime;
     h->setup.sampleRate = sampleRate;
     h->setup.maxSamplesPerBlock = h->block;
     h->setup.symbolicSampleSize = kSample32;
 
-    // 3) раскладка выходов под 1 или 2 канала
+    // 3) Configure mono or stereo output.
     SpeakerArrangement outArr = (h->channels == 1) ? SpeakerArr::kMono : SpeakerArr::kStereo;
     h->processor->setBusArrangements(nullptr, 0, &outArr, 1);
 
-    // 4) применить новый setup
+    // 4) Apply the new setup.
     if (h->processor->setupProcessing(h->setup) != kResultOk)
         return false;
 
-    // 5) обновить контекст и буферы
+    // 5) Update the context and buffers.
     h->ctx.sampleRate = sampleRate;
     h->chL.assign(h->block, 0.f);
     h->chR.assign(h->block, 0.f);
 
-    // 6) снова активировать и запустить
+    // 6) Reactivate and resume processing.
     h->component->activateBus(kAudio, kOutput, 0, true);
     h->component->setActive(true);
     h->processor->setProcessing(true);
@@ -321,7 +321,7 @@ API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
     if (!h || !size) return false;
     std::lock_guard<std::mutex> lk(h->m);
 
-    // 1) получить state компонента
+    // 1) Retrieve component state.
     Steinberg::MemoryStream compMs;
     uint32_t compSize = 0;
     if (h->component) {
@@ -330,7 +330,7 @@ API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
         compSize = static_cast<uint32_t>(compMs.getSize());
     }
 
-    // 2) получить state контроллера (если есть)
+    // 2) Retrieve controller state, if available.
     Steinberg::MemoryStream ctlMs;
     uint32_t ctlSize = 0;
     if (h->controller) {
@@ -339,17 +339,17 @@ API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
         ctlSize = static_cast<uint32_t>(ctlMs.getSize());
     }
 
-    // 3) общий размер: 4 + comp + 4 + ctl
+    // 3) Total size: 4 + comp + 4 + ctl.
     const uint32_t total = 4u + compSize + 4u + ctlSize;
 
     if (!buffer) {
-        // только сообщаем нужный размер
+        // Only report the required size.
         *size = total;
         return true;
     }
 
     if (*size < total) {
-        // буфера не хватило — сообщаем, сколько нужно
+        // The buffer is too small; report the required size.
         *size = total;
         return false;
     }
@@ -364,7 +364,7 @@ API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
         out += 4;
     };
 
-    // 4) пишем component
+    // 4) Write component state.
     writeU32(compSize);
     if (compSize > 0) {
         auto* data = reinterpret_cast<const uint8_t*>(compMs.getData());
@@ -372,7 +372,7 @@ API bool VstGetState(VstHandle* h, void* buffer, uint32_t* size) {
         out += compSize;
     }
 
-    // 5) пишем controller
+    // 5) Write controller state.
     writeU32(ctlSize);
     if (ctlSize > 0) {
         auto* data = reinterpret_cast<const uint8_t*>(ctlMs.getData());
@@ -390,7 +390,7 @@ API bool VstSetState(VstHandle* h, const void* buffer, uint32_t size) {
 
     std::lock_guard<std::mutex> lk(h->m);
 
-    // 1. Всегда очищаем host-side runtime перед восстановлением состояния.
+    // 1. Always clear host-side runtime data before restoring state.
     if (h->inParams) {
 #if 1
         h->inParams->clearQueue();
@@ -413,8 +413,8 @@ API bool VstSetState(VstHandle* h, const void* buffer, uint32_t size) {
     h->ctx = {};
     h->ctx.sampleRate = h->setup.sampleRate;
 
-    // 2. Пустое состояние = только очистка runtime.
-    // Это важно для нового pluginId, у которого ещё нет сохранённого state.
+    // 2. Empty state only clears runtime data.
+    // This matters for a new pluginId with no saved state.
     if (!buffer || size == 0) {
         Steinberg::MemoryStream emptyState;
 
@@ -425,7 +425,7 @@ API bool VstSetState(VstHandle* h, const void* buffer, uint32_t size) {
         return true;
     }
 
-    // 3. Если state есть, он должен содержать хотя бы:
+    // 3. Nonempty state must contain at least:
     // uint32 componentSize + uint32 controllerSize.
     if (size < 8) {
         return false;
